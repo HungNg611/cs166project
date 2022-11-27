@@ -15,6 +15,35 @@ app.config['MYSQL_DB'] = db['mysql_db']
 
 mysql = MySQL(app)
 
+if __name__ == '__main__':
+    app.run(debug=True)
+
+@app.route("/health", methods=['GET'])
+def health():
+    return {"response": "Server is up!"}
+
+@app.route("/db-setup", methods=['GET'])
+def databaseSetup():
+    cur = mysql.connection.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users(
+        email VARCHAR(255),
+        password VARCHAR(255)
+    )""")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS targets(
+        id int NOT NULL AUTO_INCREMENT,
+        email VARCHAR(255),
+        UNIQUE(email),
+        PRIMARY KEY (id)
+    )""")
+
+    mysql.connection.commit()
+    cur.close()
+    return {"response": "Database setup successfully"}
+
 @app.route("/login", methods=['POST', 'GET'])
 @cross_origin(supports_credentials=True)
 def login():
@@ -41,14 +70,42 @@ def users():
     cur = mysql.connection.cursor()
 
     result = cur.execute("SELECT * FROM users")
+    json_data = []
     if result > 0:
         row_headers = [x[0] for x in cur.description]  # this will extract
         # row headers
         rv = cur.fetchall()
-        json_data = []
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
+    cur.close()
     return json.dumps(json_data)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+
+@app.route("/target", methods=['POST', 'GET'])
+def target():
+    cur = mysql.connection.cursor()
+
+    if request.method == 'POST':
+
+        data = json.loads(request.data)
+
+        target_email = data.get('email')
+
+        result = cur.execute(f"INSERT INTO targets (id, email) VALUES (null, '{target_email}')")
+
+        mysql.connection.commit()
+        cur.close()
+        return {"response": "target table insert successfull",
+                "data": target_email}
+    elif request.method == 'GET':
+        cur.execute("SELECT * FROM targets")
+
+        col_names = [col[0] for col in cur.description]
+        result = [dict(zip(col_names, row)) for row in cur.fetchall()]
+        print(result)
+        cur.close()
+        return {"response": "Successfully fetched all target emails",
+                "data": result}
+
+
