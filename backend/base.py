@@ -1,6 +1,7 @@
 from flask import Flask,request
 from flask_mysqldb import MySQL
 from flask_cors import CORS, cross_origin
+import email_utility
 import yaml, json
 
 app = Flask(__name__)
@@ -108,4 +109,21 @@ def target():
         return {"response": "Successfully fetched all target emails",
                 "data": result}
 
+@app.route("/email", methods=['POST'])
+def email():
+    cur = mysql.connection.cursor()
+
+    # Get the targets in the MySQL DB
+    query = cur.execute("SELECT email FROM targets")
+    col_names = [col[0] for col in cur.description]
+    targets = [dict(zip(col_names, row)) for row in cur.fetchall()]
+
+    # Send the spam email to each of the targets
+    for i in range(len(targets)):
+        print(targets[i]["email"])
+        email_utility.send_email(targets[i]["email"], "ALERT: Please login to your Facebook account")
+
+    cur.close()
+    return {"response": "Successfully send scam emails",
+                "targets": targets}
 
